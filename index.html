@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Redirecting…</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 3rem auto; max-width: 32rem; padding: 0 1rem; color: #222; }
+  a { color: #0645ad; }
+  .muted { color: #666; font-size: .9rem; }
+</style>
+</head>
+<body>
+<p id="msg">One moment — taking you to the survey…</p>
+<p id="fallback" class="muted" hidden>If nothing happens, <a id="link" href="#">click here to continue</a>.</p>
+<script>
+(function () {
+  // ---- CONFIG: preencher com os IDs dos formulários Tally do S1 (um por célula) ----
+  var FORMS = { EN: "pb247J", PTBR: "TALLY_ID_PTBR", IT: "TALLY_ID_IT", NL: "TALLY_ID_NL" };
+  var VARS = ["ADE", "DEA", "EAD"];        // ordem dos cards do espelho
+  var N_ORDEM = 6;                          // ordens dos nomes (tabela na spec do S1, §12)
+
+  // ---- leitura dos parâmetros: célula na query; PID/STUDY/SESSION no fragmento (#) ----
+  function parse(str) {
+    var out = {};
+    str.replace(/^[?#]/, "").split("&").forEach(function (kv) {
+      if (!kv) return;
+      var i = kv.indexOf("="), k = i < 0 ? kv : kv.slice(0, i), v = i < 0 ? "" : kv.slice(i + 1);
+      try { out[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, " ")); } catch (e) { out[k] = v; }
+    });
+    return out;
+  }
+  var q = parse(location.search), h = parse(location.hash);
+  var get = function (k) { return h[k] || q[k] || ""; };      // fragmento primeiro; query como fallback
+  var cel = (q.cel || q.CEL || h.cel || "EN").toUpperCase();
+  if (!FORMS[cel]) cel = "EN";
+  var pid = get("PROLIFIC_PID"), study = get("STUDY_ID"), session = get("SESSION_ID");
+
+  // ---- atribuição determinística por PID (FNV-1a 32 bits); sem PID -> aleatório ----
+  function fnv1a(s) {
+    var hsh = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) { hsh ^= s.charCodeAt(i); hsh = (hsh * 0x01000193) >>> 0; }
+    return hsh >>> 0;
+  }
+  var k, note = "";
+  if (pid && !/^\{\{/.test(pid)) { k = fnv1a(pid) % (VARS.length * N_ORDEM); }
+  else { k = Math.floor(Math.random() * VARS.length * N_ORDEM); note = " (no participant ID found — random assignment; test mode)"; }
+  var VAR = VARS[k % VARS.length];
+  var ORDEM = Math.floor(k / VARS.length) + 1;
+
+  // ---- montagem da URL do Tally (hidden fields na query, como na C1) ----
+  var url = "https://tally.so/r/" + FORMS[cel]
+    + "?PROLIFIC_PID=" + encodeURIComponent(pid)
+    + "&STUDY_ID=" + encodeURIComponent(study)
+    + "&SESSION_ID=" + encodeURIComponent(session)
+    + "&CEL=" + cel + "&VAR=" + VAR + "&ORDEM=" + ORDEM;
+
+  document.getElementById("link").href = url;
+  document.getElementById("fallback").hidden = false;
+  if (note) { document.getElementById("msg").textContent += note; }
+  location.replace(url);
+})();
+</script>
+<noscript>
+  <p>Please enable JavaScript, or <a href="https://tally.so/r/TALLY_ID_EN?CEL=EN&VAR=ADE&ORDEM=1">continue here</a>.</p>
+</noscript>
+</body>
+</html>
